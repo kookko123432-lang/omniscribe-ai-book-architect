@@ -51,7 +51,7 @@ const Layout: React.FC<LayoutProps> = ({ children, step, onOpenSettings, onBackT
   ];
 
   return (
-    <div className="flex h-screen bg-stone-900 text-stone-100 font-sans selection:bg-accent selection:text-white">
+    <div className="flex h-screen bg-stone-900 text-stone-100 font-sans selection:bg-accent selection:text-white print:h-auto print:overflow-visible print:block">
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-stone-950 border-b border-stone-800 px-4 py-3 flex items-center justify-between no-print">
         <div className="flex items-center gap-2">
@@ -141,7 +141,7 @@ const Layout: React.FC<LayoutProps> = ({ children, step, onOpenSettings, onBackT
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden flex flex-col relative print:overflow-visible md:mt-0 mt-14">
+      <main className="flex-1 overflow-hidden flex flex-col relative print:overflow-visible print:h-auto print:flex-none md:mt-0 mt-14">
         {children}
       </main>
     </div>

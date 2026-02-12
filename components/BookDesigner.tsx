@@ -70,7 +70,7 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
   };
 
   return (
-    <div className="flex h-full flex-col md:flex-row relative">
+    <div className="flex h-full flex-col md:flex-row relative print:h-auto print:block print:overflow-visible">
       {/* Settings Panel (Hidden when printing) */}
       <div className="w-full md:w-96 bg-stone-950 border-r border-stone-800 flex flex-col no-print overflow-y-auto">
         <div className="p-6 border-b border-stone-800">
@@ -224,7 +224,7 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
       </div>
 
       {/* Preview Area (This is what gets printed) */}
-      <div className={`flex-1 overflow-y-auto ${project.layoutSettings.theme === 'scifi' ? 'bg-black' : 'bg-stone-200'} p-8 print:p-0 print:bg-white print:overflow-visible`}>
+      <div className={`flex-1 overflow-y-auto ${project.layoutSettings.theme === 'scifi' ? 'bg-black' : 'bg-stone-200'} p-8 print:p-0 print:bg-white print:overflow-visible print:h-auto print:flex-none`}>
 
         {/* Print Container */}
         <div id="book-preview-container" className={`

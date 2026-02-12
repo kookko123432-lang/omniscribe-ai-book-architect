@@ -38,17 +38,49 @@
     size: A4;
   }
 
-  /* Hide everything except the book preview */
+  /* ── Unlock the ENTIRE height/overflow constraint chain ── */
+  /* Without these, the PDF only shows one page */
+
+  /* Reset html and body */
+  html,
   body {
-    background-color: white !important;
-    color: black !important;
+    height: auto !important;
     overflow: visible !important;
     margin: 0 !important;
     padding: 0 !important;
+    background: white !important;
+    color: black !important;
   }
 
-  /* Hide sidebar, nav, and other non-print elements */
+  /* Layout.tsx root: h-screen → auto */
+  body>div,
+  body>div>div,
+  [class*="h-screen"],
+  [class*="h-full"] {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Layout.tsx main: flex-1 overflow-hidden → visible */
+  main,
+  [class*="overflow-hidden"],
+  [class*="overflow-y-auto"] {
+    overflow: visible !important;
+    height: auto !important;
+    flex: none !important;
+  }
+
+  /* Flex containers: allow natural flow */
+  [class*="flex-1"] {
+    flex: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* ── Hide non-print elements ── */
   .no-print,
+  aside,
   header,
   nav,
   footer,
@@ -61,15 +93,7 @@
     display: block !important;
   }
 
-  /* The preview scroll container — remove scroll, show all */
-  .overflow-y-auto {
-    overflow: visible !important;
-    height: auto !important;
-    background: white !important;
-    padding: 0 !important;
-  }
-
-  /* The book container — fill width, no shadow */
+  /* ── Book preview container ── */
   #book-preview-container {
     max-width: none !important;
     width: 100% !important;
@@ -78,32 +102,35 @@
     box-shadow: none !important;
   }
 
-  /* Page breaks */
+  /* Preview wrapper — remove padding/bg */
+  #book-preview-container>* {
+    box-shadow: none !important;
+  }
+
+  /* ── Page breaks ── */
   .page-break {
     page-break-before: always;
     break-before: page;
   }
 
-  /* First page-break element should not break before */
+  /* First page should not break before itself */
   #book-preview-container>.page-break:first-child {
     page-break-before: auto;
     break-before: auto;
   }
 
-  /* Prevent orphans and widows for content */
+  /* ── Typography for print ── */
   p {
     orphans: 3;
     widows: 3;
   }
 
-  /* Full-bleed images */
   img {
     max-width: 100% !important;
     page-break-inside: avoid;
     break-inside: avoid;
   }
 
-  /* No breaks inside these blocks */
   h1,
   h2,
   h3,
@@ -114,7 +141,6 @@
     break-after: avoid;
   }
 
-  /* Chapter content sections — let them flow naturally */
   .prose {
     max-width: none !important;
   }
