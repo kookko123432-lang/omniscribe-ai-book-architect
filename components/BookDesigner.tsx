@@ -241,30 +241,53 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
           `}>
 
           {/* Cover Page */}
-          <div className="relative w-full h-[229mm] p-10 flex flex-col items-center justify-between text-center page-break print-fullbleed">
+          <div className="relative w-full h-[229mm] page-break print-fullbleed overflow-hidden">
+            {/* ── Print mode: full-page cover image ── */}
             {project.coverImage && (
-              <div className="absolute inset-0 w-full h-full z-0">
+              <img
+                src={project.coverImage}
+                alt="Cover"
+                className="hidden print:block absolute inset-0 w-full h-full object-cover"
+              />
+            )}
+
+            {/* ── Screen mode: decorative blurred background ── */}
+            {project.coverImage && (
+              <div className="absolute inset-0 w-full h-full z-0 print:hidden">
                 <img src={project.coverImage} alt="Cover" className="w-full h-full object-cover opacity-30 blur-sm" />
                 <div className={`absolute inset-0 ${project.layoutSettings.theme === 'scifi' ? 'bg-black/70' : 'bg-white/60'}`}></div>
               </div>
             )}
 
-            <div className="relative z-10 mt-20">
-              <h1 className="text-5xl md:text-6xl font-bold mb-4 tracking-tight leading-tight">{project.settings.title}</h1>
-              <p className="text-xl md:text-2xl opacity-80 font-light">{project.settings.topic}</p>
+            {/* ── Screen mode: title + cover art + author ── */}
+            <div className="relative z-10 p-10 flex flex-col items-center justify-between text-center h-full print:hidden">
+              <div className="mt-20">
+                <h1 className="text-5xl md:text-6xl font-bold mb-4 tracking-tight leading-tight">{project.settings.title}</h1>
+                <p className="text-xl md:text-2xl opacity-80 font-light">{project.settings.topic}</p>
+              </div>
+
+              {project.coverImage && (
+                <div className="w-64 h-80 shadow-2xl border-4 border-white/20 rounded-sm overflow-hidden my-8">
+                  <img src={project.coverImage} alt="Cover Art" className="w-full h-full object-cover" />
+                </div>
+              )}
+
+              {project.settings.authorName && (
+                <div className="mb-20">
+                  <p className="text-lg font-bold">{project.settings.authorName}</p>
+                </div>
+              )}
             </div>
 
-            {project.coverImage && (
-              <div className="relative z-10 w-64 h-80 shadow-2xl border-4 border-white/20 rounded-sm overflow-hidden my-8">
-                <img src={project.coverImage} alt="Cover Art" className="w-full h-full object-cover" />
+            {/* ── Print mode: title overlay on cover image ── */}
+            <div className="hidden print:flex absolute inset-0 z-10 flex-col items-center justify-end p-10 text-white">
+              <div className="bg-black/50 px-8 py-6 rounded-lg backdrop-blur-sm mb-10">
+                <h1 className="text-4xl font-bold mb-2">{project.settings.title}</h1>
+                {project.settings.authorName && (
+                  <p className="text-lg opacity-90">{project.settings.authorName}</p>
+                )}
               </div>
-            )}
-
-            {project.settings.authorName && (
-              <div className="relative z-10 mb-20">
-                <p className="text-lg font-bold">{project.settings.authorName}</p>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Table of Contents */}

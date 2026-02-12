@@ -34,16 +34,26 @@
 /* ─── Print styles ─── */
 @media print {
 
-  /* Zero margin = browser will NOT show headers/footers
-     (date, title, URL, page numbers are hidden) */
+  /* Content pages: uniform 2cm margin on all sides.
+     This ensures EVERY page (including continuation pages)
+     has consistent top, bottom, left, right margins.
+     When using "Save as PDF" in Chrome, headers/footers
+     are hidden by default. */
   @page {
-    margin: 0;
+    margin: 2cm;
     size: 152mm 229mm;
   }
 
-  /* Full-bleed pages (cover, back cover) use the full page */
+  /* Full-bleed pages (cover, back cover): zero margin
+     so the cover image can fill the entire page. */
   @page fullbleed {
     margin: 0;
+  }
+
+  /* Force backgrounds and colors to print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* Reset html & body */
@@ -81,10 +91,10 @@
     background: transparent !important;
   }
 
-  /* Book preview container */
+  /* Book preview container: fill the page content area */
   #book-preview-container {
-    width: 152mm !important;
-    max-width: 152mm !important;
+    width: auto !important;
+    max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
@@ -106,6 +116,20 @@
   /* Full-bleed pages (cover, back cover) */
   .print-fullbleed {
     page: fullbleed;
+  }
+
+  /* Strip element padding for non-fullbleed pages.
+     @page margin: 2cm handles all spacing, so elements
+     don't need their own padding.
+     BUT fullbleed pages keep their padding since @page margin is 0. */
+  #book-preview-container>div:not(.print-fullbleed),
+  #book-preview-container>div>div {
+    padding: 0 !important;
+  }
+
+  /* Fullbleed pages keep their original padding */
+  .print-fullbleed {
+    padding: 10mm !important;
   }
 
   /* Typography */
