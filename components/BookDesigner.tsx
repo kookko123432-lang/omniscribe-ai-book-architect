@@ -227,7 +227,7 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
       <div className={`flex-1 overflow-y-auto ${project.layoutSettings.theme === 'scifi' ? 'bg-black' : 'bg-stone-200'} p-8 print:p-0 print:bg-white print:overflow-visible`}>
 
         {/* Print Container */}
-        <div className={`
+        <div id="book-preview-container" className={`
                 max-w-[210mm] mx-auto min-h-[297mm] shadow-2xl print:shadow-none print:w-full print:max-w-none
                 ${getThemeClasses()} ${getFontFamily()}
                 transition-colors duration-300

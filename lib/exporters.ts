@@ -17,7 +17,7 @@ function buildMarkdown(project: BookProject): string {
     if (project.settings.authorName) {
         md += `**${project.settings.authorName}**\n\n---\n\n`;
     }
-    project.structure.chapters.forEach((c, ci) => {
+    project.structure.chapters.forEach((c) => {
         md += `## ${c.title}\n\n`;
         c.sections.forEach(s => {
             if (s.content) {
@@ -33,11 +33,10 @@ function buildPlainText(project: BookProject): string {
     if (project.settings.authorName) {
         txt += `作者 / Author: ${project.settings.authorName}\n\n`;
     }
-    project.structure.chapters.forEach((c, ci) => {
+    project.structure.chapters.forEach((c) => {
         txt += `\n${'─'.repeat(40)}\n${c.title}\n${'─'.repeat(40)}\n\n`;
         c.sections.forEach(s => {
             if (s.content) {
-                // Strip markdown formatting for plain text
                 const plain = s.content
                     .replace(/#{1,6}\s/g, '')
                     .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -77,10 +76,8 @@ export async function exportEPUB(project: BookProject) {
     const author = project.settings.authorName || 'Unknown';
     const bookId = `omniscribe-${Date.now()}`;
 
-    // mimetype (must be first, uncompressed)
     zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
 
-    // META-INF/container.xml
     zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles>
@@ -88,7 +85,6 @@ export async function exportEPUB(project: BookProject) {
   </rootfiles>
 </container>`);
 
-    // Build chapter XHTML files
     const chapters = project.structure.chapters;
     const chapterFiles: { id: string; filename: string; title: string }[] = [];
 
@@ -118,7 +114,6 @@ ${body}
         chapterFiles.push({ id, filename, title: chapter.title });
     });
 
-    // Stylesheet
     zip.file('OEBPS/style.css', `
 body { font-family: serif; line-height: 1.8; margin: 1em; color: #222; }
 h1 { font-size: 1.8em; margin-top: 2em; margin-bottom: 0.5em; text-align: center; }
@@ -128,7 +123,6 @@ p { text-indent: 2em; margin: 0.5em 0; text-align: justify; }
 blockquote { margin: 1em 2em; font-style: italic; border-left: 3px solid #ccc; padding-left: 1em; }
 `);
 
-    // Title page
     zip.file('OEBPS/title.xhtml', `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh">
@@ -141,7 +135,6 @@ blockquote { margin: 1em 2em; font-style: italic; border-left: 3px solid #ccc; p
 </body>
 </html>`);
 
-    // TOC (NCX for EPUB2 compat)
     const tocNcxItems = chapterFiles.map((ch, i) => `
     <navPoint id="nav_${i}" playOrder="${i + 2}">
       <navLabel><text>${escapeHtml(ch.title)}</text></navLabel>
@@ -163,7 +156,6 @@ ${tocNcxItems}
   </navMap>
 </ncx>`);
 
-    // content.opf
     const manifestItems = [
         `<item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>`,
         `<item id="style" href="style.css" media-type="text/css"/>`,
@@ -207,7 +199,6 @@ export async function exportDOCX(project: BookProject) {
 
     const children: any[] = [];
 
-    // Title page
     children.push(
         new Paragraph({ text: '', spacing: { before: 4000 } }),
         new Paragraph({
@@ -226,9 +217,7 @@ export async function exportDOCX(project: BookProject) {
     }
     children.push(new Paragraph({ children: [new PageBreak()] }));
 
-    // Chapters
-    project.structure.chapters.forEach((chapter, ci) => {
-        // Chapter heading
+    project.structure.chapters.forEach((chapter) => {
         children.push(
             new Paragraph({
                 text: chapter.title,
@@ -240,7 +229,6 @@ export async function exportDOCX(project: BookProject) {
         chapter.sections.forEach(section => {
             if (!section.content) return;
 
-            // Section heading
             children.push(
                 new Paragraph({
                     text: section.title,
@@ -249,13 +237,11 @@ export async function exportDOCX(project: BookProject) {
                 })
             );
 
-            // Parse content into paragraphs
             const lines = section.content.split('\n');
             lines.forEach(line => {
                 const trimmed = line.trim();
                 if (!trimmed) return;
 
-                // Headings
                 if (trimmed.startsWith('### ')) {
                     children.push(new Paragraph({
                         text: trimmed.replace(/^### /, ''),
@@ -275,7 +261,6 @@ export async function exportDOCX(project: BookProject) {
                         spacing: { before: 600, after: 300 },
                     }));
                 } else if (trimmed.startsWith('> ')) {
-                    // Blockquote
                     children.push(new Paragraph({
                         children: [new TextRun({
                             text: trimmed.replace(/^> /, ''),
@@ -293,7 +278,6 @@ export async function exportDOCX(project: BookProject) {
                         spacing: { before: 200, after: 200 },
                     }));
                 } else {
-                    // Regular paragraph — strip basic markdown
                     const cleaned = trimmed
                         .replace(/\*\*(.*?)\*\*/g, '$1')
                         .replace(/\*(.*?)\*/g, '$1')
@@ -313,7 +297,6 @@ export async function exportDOCX(project: BookProject) {
             });
         });
 
-        // Page break after each chapter
         children.push(new Paragraph({ children: [new PageBreak()] }));
     });
 
@@ -328,245 +311,134 @@ export async function exportDOCX(project: BookProject) {
     saveAs(blob, `${sanitizeFilename(title)}.docx`);
 }
 
-// ─── PDF Export (novel-style via html2canvas) ───
+// ─── PDF Export (captures the actual rendered preview from BookDesigner) ───
 
 export async function exportPDF(project: BookProject) {
     const { jsPDF } = await import('jspdf');
     const html2canvas = (await import('html2canvas')).default;
 
     const title = project.settings.title;
-    const author = project.settings.authorName || '';
     const filename = sanitizeFilename(title);
 
-    // Novel page dimensions (mm) — close to A5 / trade paperback
-    const PAGE_W_MM = 140;
-    const PAGE_H_MM = 210;
-    // Render at 2x for crisp output
-    const SCALE = 2;
-    const PAGE_W_PX = Math.round(PAGE_W_MM * 3.78 * SCALE); // ~1058px
-    const PAGE_H_PX = Math.round(PAGE_H_MM * 3.78 * SCALE); // ~1588px
+    // Find the actual rendered preview container in the DOM
+    const container = document.getElementById('book-preview-container');
+    if (!container) {
+        alert('請先切換到「設計與出版」頁面再匯出 PDF');
+        return;
+    }
 
-    const doc = new jsPDF({ unit: 'mm', format: [PAGE_W_MM, PAGE_H_MM] });
+    // A4 page dimensions
+    const PAGE_W_MM = 210;
+    const PAGE_H_MM = 297;
 
-    // Create off-screen container
-    const container = document.createElement('div');
-    container.style.cssText = `
-        position: fixed; top: -99999px; left: -99999px;
-        width: ${PAGE_W_PX}px; pointer-events: none; z-index: -9999;
-    `;
-    document.body.appendChild(container);
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-    let pageIndex = 0;
+    // Collect all renderable page elements from the preview DOM
+    // Structure: cover (.page-break), TOC (.page-break),
+    // chapter wrappers containing title page (.page-break) + content div,
+    // back cover (.page-break)
+    const allElements: HTMLElement[] = [];
 
-    // Helper: render an HTML string as one PDF page
-    const renderPage = async (html: string) => {
-        const pageDiv = document.createElement('div');
-        pageDiv.innerHTML = html;
-        pageDiv.style.cssText = `
-            width: ${PAGE_W_PX}px; height: ${PAGE_H_PX}px;
-            overflow: hidden; box-sizing: border-box;
-            font-family: "Noto Serif TC", "Noto Serif SC", "Noto Serif JP", "Source Han Serif", "Songti SC", "SimSun", Georgia, serif;
-        `;
-        container.appendChild(pageDiv);
-        const canvas = await html2canvas(pageDiv, {
-            width: PAGE_W_PX, height: PAGE_H_PX, scale: 1,
-            backgroundColor: '#fdfbf7', useCORS: true, logging: false,
-        });
-        const imgData = canvas.toDataURL('image/jpeg', 0.92);
-        if (pageIndex > 0) doc.addPage();
-        doc.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM);
-        pageIndex++;
-        container.removeChild(pageDiv);
-    };
+    const children = Array.from(container.children) as HTMLElement[];
+    for (const child of children) {
+        if (child.classList.contains('page-break')) {
+            allElements.push(child);
+        } else {
+            // Chapter wrapper — contains title page + content div
+            const subChildren = Array.from(child.children) as HTMLElement[];
+            for (const sub of subChildren) {
+                allElements.push(sub);
+            }
+        }
+    }
 
-    // Helper: render long content as multiple pages (auto-paged)
-    const renderContentPages = async (html: string, chapterNum: number, startPage: number): Promise<number> => {
-        const measureDiv = document.createElement('div');
-        measureDiv.innerHTML = html;
-        const paddingPx = Math.round(PAGE_W_PX * 0.12);
-        measureDiv.style.cssText = `
-            width: ${PAGE_W_PX}px; box-sizing: border-box;
-            padding: ${paddingPx}px;
-            font-family: "Noto Serif TC", "Noto Serif SC", "Noto Serif JP", "Source Han Serif", "Songti SC", "SimSun", Georgia, serif;
-            font-size: ${Math.round(16 * SCALE)}px; line-height: 2;
-            color: #2d2a2e;
-        `;
-        container.appendChild(measureDiv);
+    if (allElements.length === 0) {
+        alert('沒有找到可匯出的頁面內容');
+        return;
+    }
 
-        // Wait for fonts
-        await new Promise(r => setTimeout(r, 100));
-        const totalH = measureDiv.scrollHeight;
-        const contentH = PAGE_H_PX - paddingPx * 2;
-        const numPages = Math.max(1, Math.ceil(totalH / contentH));
+    // Save scroll state
+    const scrollParent = container.closest('.overflow-y-auto') as HTMLElement;
+    const savedScroll = scrollParent?.scrollTop || 0;
 
-        // Render page by page using clip
-        for (let p = 0; p < numPages; p++) {
-            const clipDiv = document.createElement('div');
-            clipDiv.style.cssText = `
-                width: ${PAGE_W_PX}px; height: ${PAGE_H_PX}px;
-                overflow: hidden; position: relative;
-                background: #fdfbf7;
-            `;
-            const inner = document.createElement('div');
-            inner.innerHTML = html;
-            inner.style.cssText = `
-                width: ${PAGE_W_PX}px; box-sizing: border-box;
-                padding: ${paddingPx}px;
-                font-family: "Noto Serif TC", "Noto Serif SC", "Noto Serif JP", "Source Han Serif", "Songti SC", "SimSun", Georgia, serif;
-                font-size: ${Math.round(16 * SCALE)}px; line-height: 2;
-                color: #2d2a2e;
-                position: absolute; top: ${-p * contentH}px; left: 0;
-            `;
-            // Page number
-            const pageNum = document.createElement('div');
-            pageNum.textContent = `${startPage + p}`;
-            pageNum.style.cssText = `
-                position: absolute; bottom: ${Math.round(paddingPx * 0.4)}px;
-                right: ${paddingPx}px;
-                font-size: ${Math.round(12 * SCALE)}px; color: #999;
-                font-family: Georgia, serif;
-            `;
-            clipDiv.appendChild(inner);
-            clipDiv.appendChild(pageNum);
-            container.appendChild(clipDiv);
+    // Background color from the container's computed style
+    const containerStyle = window.getComputedStyle(container);
+    const bgColor = containerStyle.backgroundColor || '#fdfbf7';
 
-            const canvas = await html2canvas(clipDiv, {
-                width: PAGE_W_PX, height: PAGE_H_PX, scale: 1,
-                backgroundColor: '#fdfbf7', useCORS: true, logging: false,
+    let isFirstPage = true;
+
+    for (const el of allElements) {
+        if (el.offsetHeight < 10) continue;
+
+        try {
+            // Capture the element as-is from the rendered preview
+            const canvas = await html2canvas(el, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: bgColor,
+                width: el.offsetWidth,
+                height: el.offsetHeight,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: el.offsetWidth,
             });
-            const imgData = canvas.toDataURL('image/jpeg', 0.92);
-            if (pageIndex > 0) doc.addPage();
-            doc.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM);
-            pageIndex++;
-            container.removeChild(clipDiv);
-        }
 
-        container.removeChild(measureDiv);
-        return numPages;
-    };
+            const imgW = canvas.width;
+            const imgH = canvas.height;
 
-    // ─── 1. Cover page (full bleed image or styled) ───
-    if (project.coverImage) {
-        await renderPage(`
-            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1a1a1a;">
-                <img src="${project.coverImage}" style="max-width:100%; max-height:100%; object-fit:contain;" />
-            </div>
-        `);
-    }
+            // Scale to fit page width
+            const pdfW = PAGE_W_MM;
+            const scaleFactor = pdfW / imgW;
+            const pdfH = imgH * scaleFactor;
 
-    // ─── 2. Title page ───
-    const pad = Math.round(PAGE_W_PX * 0.12);
-    await renderPage(`
-        <div style="width:100%; height:100%; background:#fdfbf7; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:${pad}px;">
-            <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-                <h1 style="font-size:${Math.round(36 * SCALE)}px; font-weight:bold; color:#2d2a2e; line-height:1.3; margin:0; font-family:'Noto Serif TC','Songti SC',Georgia,serif;">
-                    ${escapeHtml(title)}
-                </h1>
-                ${author ? `<p style="font-size:${Math.round(18 * SCALE)}px; color:#666; margin-top:${Math.round(30 * SCALE)}px; font-family:'Noto Serif TC','Songti SC',Georgia,serif;">${escapeHtml(author)}</p>` : ''}
-            </div>
-            <div style="width:60px; height:2px; background:#ccc; margin-bottom:${Math.round(60 * SCALE)}px;"></div>
-        </div>
-    `);
+            if (pdfH <= PAGE_H_MM) {
+                // Fits in one page
+                if (!isFirstPage) doc.addPage();
+                doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pdfW, pdfH);
+                isFirstPage = false;
+            } else {
+                // Content spans multiple pages — slice the canvas
+                const pagesNeeded = Math.ceil(pdfH / PAGE_H_MM);
+                const sliceHeightPx = Math.floor(imgH / pagesNeeded);
 
-    // ─── 3. Table of Contents ───
-    const tocLabel = (() => {
-        const lang = project.settings.language.toLowerCase();
-        if (lang.includes('chinese') || lang.includes('中文')) return '目錄';
-        if (lang.includes('japanese') || lang.includes('日')) return '目次';
-        if (lang.includes('spanish')) return 'Índice';
-        return 'Table of Contents';
-    })();
+                for (let p = 0; p < pagesNeeded; p++) {
+                    if (!isFirstPage) doc.addPage();
 
-    const tocItems = project.structure.chapters.map((ch, i) =>
-        `<div style="display:flex; align-items:baseline; margin-bottom:${Math.round(12 * SCALE)}px;">
-            <span style="font-size:${Math.round(16 * SCALE)}px; color:#2d2a2e; white-space:nowrap;">${escapeHtml(ch.title)}</span>
-            <span style="flex:1; border-bottom:1px dotted #ccc; margin:0 ${Math.round(8 * SCALE)}px; min-width:${Math.round(20 * SCALE)}px;"></span>
-            <span style="font-size:${Math.round(14 * SCALE)}px; color:#999;">${i + 1}</span>
-        </div>`
-    ).join('');
+                    const sliceCanvas = document.createElement('canvas');
+                    sliceCanvas.width = imgW;
+                    const thisSliceH = Math.min(sliceHeightPx, imgH - p * sliceHeightPx);
+                    sliceCanvas.height = thisSliceH;
 
-    await renderPage(`
-        <div style="width:100%; height:100%; background:#fdfbf7; padding:${pad}px; box-sizing:border-box; display:flex; flex-direction:column; font-family:'Noto Serif TC','Songti SC',Georgia,serif;">
-            <h2 style="font-size:${Math.round(28 * SCALE)}px; font-weight:bold; color:#2d2a2e; margin:0 0 ${Math.round(15 * SCALE)}px 0; padding-bottom:${Math.round(10 * SCALE)}px; border-bottom:2px solid #ddd;">
-                ${tocLabel}
-            </h2>
-            <div style="margin-top:${Math.round(20 * SCALE)}px;">
-                ${tocItems}
-            </div>
-        </div>
-    `);
+                    const ctx = sliceCanvas.getContext('2d');
+                    if (ctx) {
+                        ctx.fillStyle = bgColor;
+                        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+                        ctx.drawImage(
+                            canvas,
+                            0, p * sliceHeightPx,
+                            imgW, thisSliceH,
+                            0, 0,
+                            imgW, thisSliceH
+                        );
+                    }
 
-    // ─── 4. Chapter content ───
-    let runningPage = 1;
-    const getChapterLabel = (i: number) => {
-        const lang = project.settings.language.toLowerCase();
-        if (lang.includes('chinese') || lang.includes('中文')) return `第 ${i + 1} 章`;
-        if (lang.includes('japanese') || lang.includes('日')) return `第${i + 1}章`;
-        if (lang.includes('spanish')) return `Capítulo ${i + 1}`;
-        return `Chapter ${i + 1}`;
-    };
-
-    for (let ci = 0; ci < project.structure.chapters.length; ci++) {
-        const chapter = project.structure.chapters[ci];
-
-        // Chapter title page
-        await renderPage(`
-            <div style="width:100%; height:100%; background:#fdfbf7; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:${pad}px; font-family:'Noto Serif TC','Songti SC',Georgia,serif;">
-                <span style="font-size:${Math.round(14 * SCALE)}px; text-transform:uppercase; letter-spacing:${Math.round(4 * SCALE)}px; color:#999;">${getChapterLabel(ci)}</span>
-                <h2 style="font-size:${Math.round(30 * SCALE)}px; font-weight:bold; color:#2d2a2e; margin-top:${Math.round(16 * SCALE)}px; line-height:1.4;">${escapeHtml(chapter.title)}</h2>
-                <div style="width:${Math.round(40 * SCALE)}px; height:2px; background:#ccc; margin-top:${Math.round(20 * SCALE)}px;"></div>
-            </div>
-        `);
-
-        // Build content HTML for this chapter
-        let contentHtml = '';
-        chapter.sections.forEach(section => {
-            if (!section.content) return;
-            contentHtml += `<h3 style="font-size:${Math.round(20 * SCALE)}px; font-weight:bold; margin:${Math.round(24 * SCALE)}px 0 ${Math.round(10 * SCALE)}px 0; color:#2d2a2e;">${escapeHtml(section.title)}</h3>`;
-            // Convert markdown to styled HTML
-            const html = section.content
-                .split('\n\n')
-                .map(block => {
-                    const t = block.trim();
-                    if (!t) return '';
-                    if (t.startsWith('### ')) return `<h4 style="font-size:${Math.round(18 * SCALE)}px; font-weight:bold; margin:${Math.round(16 * SCALE)}px 0 ${Math.round(8 * SCALE)}px 0;">${escapeHtml(t.replace(/^### /, ''))}</h4>`;
-                    if (t.startsWith('## ')) return `<h3 style="font-size:${Math.round(20 * SCALE)}px; font-weight:bold; margin:${Math.round(20 * SCALE)}px 0 ${Math.round(10 * SCALE)}px 0;">${escapeHtml(t.replace(/^## /, ''))}</h3>`;
-                    if (t.startsWith('# ')) return `<h2 style="font-size:${Math.round(24 * SCALE)}px; font-weight:bold; margin:${Math.round(24 * SCALE)}px 0 ${Math.round(12 * SCALE)}px 0;">${escapeHtml(t.replace(/^# /, ''))}</h2>`;
-                    if (t.startsWith('> ')) return `<blockquote style="margin:${Math.round(12 * SCALE)}px ${Math.round(24 * SCALE)}px; padding-left:${Math.round(16 * SCALE)}px; border-left:3px solid #ccc; font-style:italic; color:#555;">${escapeHtml(t.replace(/^> /gm, ''))}</blockquote>`;
-                    if (t === '---' || t === '***') return `<div style="text-align:center; margin:${Math.round(20 * SCALE)}px 0; color:#ccc; font-size:${Math.round(20 * SCALE)}px;">· · ·</div>`;
-
-                    // Regular paragraph with inline formatting
-                    let p = escapeHtml(t)
-                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                        .replace(/\*(.*?)\*/g, '<em>$1</em>');
-                    return `<p style="text-indent:2em; margin:${Math.round(6 * SCALE)}px 0; text-align:justify;">${p}</p>`;
-                })
-                .join('\n');
-            contentHtml += html;
-            contentHtml += `<div style="text-align:center; margin:${Math.round(30 * SCALE)}px 0; color:#ddd;">✦</div>`;
-        });
-
-        if (contentHtml) {
-            const pagesAdded = await renderContentPages(contentHtml, ci, runningPage);
-            runningPage += pagesAdded;
+                    const slicePdfH = thisSliceH * scaleFactor;
+                    doc.addImage(
+                        sliceCanvas.toDataURL('image/jpeg', 0.92),
+                        'JPEG', 0, 0, pdfW, Math.min(slicePdfH, PAGE_H_MM)
+                    );
+                    isFirstPage = false;
+                }
+            }
+        } catch (e) {
+            console.error('Error rendering page element:', e);
         }
     }
 
-    // ─── 5. Back page ───
-    await renderPage(`
-        <div style="width:100%; height:100%; background:#fdfbf7; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:${pad}px; font-family:'Noto Serif TC','Songti SC',Georgia,serif;">
-            <p style="font-size:${Math.round(16 * SCALE)}px; font-style:italic; color:#666; line-height:2; max-width:80%;">
-                "${escapeHtml(project.settings.topic)}"
-            </p>
-            ${author ? `
-                <div style="width:60px; height:1px; background:#ccc; margin:${Math.round(24 * SCALE)}px 0;"></div>
-                <p style="font-size:${Math.round(14 * SCALE)}px; color:#999;">${escapeHtml(author)}</p>
-            ` : ''}
-        </div>
-    `);
+    // Restore scroll position
+    if (scrollParent) scrollParent.scrollTop = savedScroll;
 
-    // Cleanup
-    document.body.removeChild(container);
     doc.save(`${filename}.pdf`);
 }
 
@@ -597,7 +469,6 @@ function markdownToBasicHtml(md: string): string {
             if (trimmed === '---' || trimmed === '***')
                 return '<hr/>';
 
-            // Regular paragraph — handle inline markdown
             const html = escapeHtml(trimmed)
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em>$1</em>');
