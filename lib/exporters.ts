@@ -328,115 +328,246 @@ export async function exportDOCX(project: BookProject) {
     saveAs(blob, `${sanitizeFilename(title)}.docx`);
 }
 
-// ─── PDF Export (proper multi-page) ───
+// ─── PDF Export (novel-style via html2canvas) ───
 
 export async function exportPDF(project: BookProject) {
     const { jsPDF } = await import('jspdf');
+    const html2canvas = (await import('html2canvas')).default;
 
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-    const pageW = 210;
-    const pageH = 297;
-    const marginX = 25;
-    const marginY = 30;
-    const contentW = pageW - marginX * 2;
-    const lineHeight = 7;
     const title = project.settings.title;
     const author = project.settings.authorName || '';
+    const filename = sanitizeFilename(title);
 
-    let y = marginY;
+    // Novel page dimensions (mm) — close to A5 / trade paperback
+    const PAGE_W_MM = 140;
+    const PAGE_H_MM = 210;
+    // Render at 2x for crisp output
+    const SCALE = 2;
+    const PAGE_W_PX = Math.round(PAGE_W_MM * 3.78 * SCALE); // ~1058px
+    const PAGE_H_PX = Math.round(PAGE_H_MM * 3.78 * SCALE); // ~1588px
 
-    const addPage = () => {
-        doc.addPage();
-        y = marginY;
+    const doc = new jsPDF({ unit: 'mm', format: [PAGE_W_MM, PAGE_H_MM] });
+
+    // Create off-screen container
+    const container = document.createElement('div');
+    container.style.cssText = `
+        position: fixed; top: -99999px; left: -99999px;
+        width: ${PAGE_W_PX}px; pointer-events: none; z-index: -9999;
+    `;
+    document.body.appendChild(container);
+
+    let pageIndex = 0;
+
+    // Helper: render an HTML string as one PDF page
+    const renderPage = async (html: string) => {
+        const pageDiv = document.createElement('div');
+        pageDiv.innerHTML = html;
+        pageDiv.style.cssText = `
+            width: ${PAGE_W_PX}px; height: ${PAGE_H_PX}px;
+            overflow: hidden; box-sizing: border-box;
+            font-family: "Noto Serif TC", "Noto Serif SC", "Noto Serif JP", "Source Han Serif", "Songti SC", "SimSun", Georgia, serif;
+        `;
+        container.appendChild(pageDiv);
+        const canvas = await html2canvas(pageDiv, {
+            width: PAGE_W_PX, height: PAGE_H_PX, scale: 1,
+            backgroundColor: '#fdfbf7', useCORS: true, logging: false,
+        });
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        if (pageIndex > 0) doc.addPage();
+        doc.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM);
+        pageIndex++;
+        container.removeChild(pageDiv);
     };
 
-    const checkNewPage = (needed: number) => {
-        if (y + needed > pageH - marginY) {
-            addPage();
+    // Helper: render long content as multiple pages (auto-paged)
+    const renderContentPages = async (html: string, chapterNum: number, startPage: number): Promise<number> => {
+        const measureDiv = document.createElement('div');
+        measureDiv.innerHTML = html;
+        const paddingPx = Math.round(PAGE_W_PX * 0.12);
+        measureDiv.style.cssText = `
+            width: ${PAGE_W_PX}px; box-sizing: border-box;
+            padding: ${paddingPx}px;
+            font-family: "Noto Serif TC", "Noto Serif SC", "Noto Serif JP", "Source Han Serif", "Songti SC", "SimSun", Georgia, serif;
+            font-size: ${Math.round(16 * SCALE)}px; line-height: 2;
+            color: #2d2a2e;
+        `;
+        container.appendChild(measureDiv);
+
+        // Wait for fonts
+        await new Promise(r => setTimeout(r, 100));
+        const totalH = measureDiv.scrollHeight;
+        const contentH = PAGE_H_PX - paddingPx * 2;
+        const numPages = Math.max(1, Math.ceil(totalH / contentH));
+
+        // Render page by page using clip
+        for (let p = 0; p < numPages; p++) {
+            const clipDiv = document.createElement('div');
+            clipDiv.style.cssText = `
+                width: ${PAGE_W_PX}px; height: ${PAGE_H_PX}px;
+                overflow: hidden; position: relative;
+                background: #fdfbf7;
+            `;
+            const inner = document.createElement('div');
+            inner.innerHTML = html;
+            inner.style.cssText = `
+                width: ${PAGE_W_PX}px; box-sizing: border-box;
+                padding: ${paddingPx}px;
+                font-family: "Noto Serif TC", "Noto Serif SC", "Noto Serif JP", "Source Han Serif", "Songti SC", "SimSun", Georgia, serif;
+                font-size: ${Math.round(16 * SCALE)}px; line-height: 2;
+                color: #2d2a2e;
+                position: absolute; top: ${-p * contentH}px; left: 0;
+            `;
+            // Page number
+            const pageNum = document.createElement('div');
+            pageNum.textContent = `${startPage + p}`;
+            pageNum.style.cssText = `
+                position: absolute; bottom: ${Math.round(paddingPx * 0.4)}px;
+                right: ${paddingPx}px;
+                font-size: ${Math.round(12 * SCALE)}px; color: #999;
+                font-family: Georgia, serif;
+            `;
+            clipDiv.appendChild(inner);
+            clipDiv.appendChild(pageNum);
+            container.appendChild(clipDiv);
+
+            const canvas = await html2canvas(clipDiv, {
+                width: PAGE_W_PX, height: PAGE_H_PX, scale: 1,
+                backgroundColor: '#fdfbf7', useCORS: true, logging: false,
+            });
+            const imgData = canvas.toDataURL('image/jpeg', 0.92);
+            if (pageIndex > 0) doc.addPage();
+            doc.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM);
+            pageIndex++;
+            container.removeChild(clipDiv);
         }
+
+        container.removeChild(measureDiv);
+        return numPages;
     };
 
-    // Title page
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(32);
-    const titleLines = doc.splitTextToSize(title, contentW);
-    const titleY = pageH / 3;
-    doc.text(titleLines, pageW / 2, titleY, { align: 'center' });
-
-    if (author) {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(16);
-        doc.text(author, pageW / 2, titleY + titleLines.length * 14 + 20, { align: 'center' });
+    // ─── 1. Cover page (full bleed image or styled) ───
+    if (project.coverImage) {
+        await renderPage(`
+            <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1a1a1a;">
+                <img src="${project.coverImage}" style="max-width:100%; max-height:100%; object-fit:contain;" />
+            </div>
+        `);
     }
 
-    // Content pages
-    project.structure.chapters.forEach((chapter, ci) => {
-        addPage();
+    // ─── 2. Title page ───
+    const pad = Math.round(PAGE_W_PX * 0.12);
+    await renderPage(`
+        <div style="width:100%; height:100%; background:#fdfbf7; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:${pad}px;">
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                <h1 style="font-size:${Math.round(36 * SCALE)}px; font-weight:bold; color:#2d2a2e; line-height:1.3; margin:0; font-family:'Noto Serif TC','Songti SC',Georgia,serif;">
+                    ${escapeHtml(title)}
+                </h1>
+                ${author ? `<p style="font-size:${Math.round(18 * SCALE)}px; color:#666; margin-top:${Math.round(30 * SCALE)}px; font-family:'Noto Serif TC','Songti SC',Georgia,serif;">${escapeHtml(author)}</p>` : ''}
+            </div>
+            <div style="width:60px; height:2px; background:#ccc; margin-bottom:${Math.round(60 * SCALE)}px;"></div>
+        </div>
+    `);
 
-        // Chapter title
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(22);
-        y = pageH / 3;
-        const chTitleLines = doc.splitTextToSize(chapter.title, contentW);
-        doc.text(chTitleLines, pageW / 2, y, { align: 'center' });
+    // ─── 3. Table of Contents ───
+    const tocLabel = (() => {
+        const lang = project.settings.language.toLowerCase();
+        if (lang.includes('chinese') || lang.includes('中文')) return '目錄';
+        if (lang.includes('japanese') || lang.includes('日')) return '目次';
+        if (lang.includes('spanish')) return 'Índice';
+        return 'Table of Contents';
+    })();
 
-        addPage();
+    const tocItems = project.structure.chapters.map((ch, i) =>
+        `<div style="display:flex; align-items:baseline; margin-bottom:${Math.round(12 * SCALE)}px;">
+            <span style="font-size:${Math.round(16 * SCALE)}px; color:#2d2a2e; white-space:nowrap;">${escapeHtml(ch.title)}</span>
+            <span style="flex:1; border-bottom:1px dotted #ccc; margin:0 ${Math.round(8 * SCALE)}px; min-width:${Math.round(20 * SCALE)}px;"></span>
+            <span style="font-size:${Math.round(14 * SCALE)}px; color:#999;">${i + 1}</span>
+        </div>`
+    ).join('');
 
+    await renderPage(`
+        <div style="width:100%; height:100%; background:#fdfbf7; padding:${pad}px; box-sizing:border-box; display:flex; flex-direction:column; font-family:'Noto Serif TC','Songti SC',Georgia,serif;">
+            <h2 style="font-size:${Math.round(28 * SCALE)}px; font-weight:bold; color:#2d2a2e; margin:0 0 ${Math.round(15 * SCALE)}px 0; padding-bottom:${Math.round(10 * SCALE)}px; border-bottom:2px solid #ddd;">
+                ${tocLabel}
+            </h2>
+            <div style="margin-top:${Math.round(20 * SCALE)}px;">
+                ${tocItems}
+            </div>
+        </div>
+    `);
+
+    // ─── 4. Chapter content ───
+    let runningPage = 1;
+    const getChapterLabel = (i: number) => {
+        const lang = project.settings.language.toLowerCase();
+        if (lang.includes('chinese') || lang.includes('中文')) return `第 ${i + 1} 章`;
+        if (lang.includes('japanese') || lang.includes('日')) return `第${i + 1}章`;
+        if (lang.includes('spanish')) return `Capítulo ${i + 1}`;
+        return `Chapter ${i + 1}`;
+    };
+
+    for (let ci = 0; ci < project.structure.chapters.length; ci++) {
+        const chapter = project.structure.chapters[ci];
+
+        // Chapter title page
+        await renderPage(`
+            <div style="width:100%; height:100%; background:#fdfbf7; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:${pad}px; font-family:'Noto Serif TC','Songti SC',Georgia,serif;">
+                <span style="font-size:${Math.round(14 * SCALE)}px; text-transform:uppercase; letter-spacing:${Math.round(4 * SCALE)}px; color:#999;">${getChapterLabel(ci)}</span>
+                <h2 style="font-size:${Math.round(30 * SCALE)}px; font-weight:bold; color:#2d2a2e; margin-top:${Math.round(16 * SCALE)}px; line-height:1.4;">${escapeHtml(chapter.title)}</h2>
+                <div style="width:${Math.round(40 * SCALE)}px; height:2px; background:#ccc; margin-top:${Math.round(20 * SCALE)}px;"></div>
+            </div>
+        `);
+
+        // Build content HTML for this chapter
+        let contentHtml = '';
         chapter.sections.forEach(section => {
             if (!section.content) return;
+            contentHtml += `<h3 style="font-size:${Math.round(20 * SCALE)}px; font-weight:bold; margin:${Math.round(24 * SCALE)}px 0 ${Math.round(10 * SCALE)}px 0; color:#2d2a2e;">${escapeHtml(section.title)}</h3>`;
+            // Convert markdown to styled HTML
+            const html = section.content
+                .split('\n\n')
+                .map(block => {
+                    const t = block.trim();
+                    if (!t) return '';
+                    if (t.startsWith('### ')) return `<h4 style="font-size:${Math.round(18 * SCALE)}px; font-weight:bold; margin:${Math.round(16 * SCALE)}px 0 ${Math.round(8 * SCALE)}px 0;">${escapeHtml(t.replace(/^### /, ''))}</h4>`;
+                    if (t.startsWith('## ')) return `<h3 style="font-size:${Math.round(20 * SCALE)}px; font-weight:bold; margin:${Math.round(20 * SCALE)}px 0 ${Math.round(10 * SCALE)}px 0;">${escapeHtml(t.replace(/^## /, ''))}</h3>`;
+                    if (t.startsWith('# ')) return `<h2 style="font-size:${Math.round(24 * SCALE)}px; font-weight:bold; margin:${Math.round(24 * SCALE)}px 0 ${Math.round(12 * SCALE)}px 0;">${escapeHtml(t.replace(/^# /, ''))}</h2>`;
+                    if (t.startsWith('> ')) return `<blockquote style="margin:${Math.round(12 * SCALE)}px ${Math.round(24 * SCALE)}px; padding-left:${Math.round(16 * SCALE)}px; border-left:3px solid #ccc; font-style:italic; color:#555;">${escapeHtml(t.replace(/^> /gm, ''))}</blockquote>`;
+                    if (t === '---' || t === '***') return `<div style="text-align:center; margin:${Math.round(20 * SCALE)}px 0; color:#ccc; font-size:${Math.round(20 * SCALE)}px;">· · ·</div>`;
 
-            // Section title
-            checkNewPage(20);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(14);
-            const secTitleLines = doc.splitTextToSize(section.title, contentW);
-            doc.text(secTitleLines, marginX, y);
-            y += secTitleLines.length * 6 + 5;
-
-            // Section content
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(11);
-
-            const contentLines = section.content.split('\n');
-            contentLines.forEach(line => {
-                const trimmed = line.trim();
-                if (!trimmed) {
-                    y += 3;
-                    return;
-                }
-
-                // Strip markdown
-                let text = trimmed
-                    .replace(/#{1,6}\s/g, '')
-                    .replace(/\*\*(.*?)\*\*/g, '$1')
-                    .replace(/\*(.*?)\*/g, '$1')
-                    .replace(/`(.*?)`/g, '$1')
-                    .replace(/\[(.*?)\]\(.*?\)/g, '$1')
-                    .replace(/^[>-]\s?/, '');
-
-                if (trimmed.startsWith('#')) {
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(13);
-                }
-
-                const wrapped = doc.splitTextToSize(text, contentW);
-                wrapped.forEach((wline: string) => {
-                    checkNewPage(lineHeight);
-                    doc.text(wline, marginX, y);
-                    y += lineHeight;
-                });
-
-                if (trimmed.startsWith('#')) {
-                    doc.setFont('helvetica', 'normal');
-                    doc.setFontSize(11);
-                }
-            });
-
-            y += 8; // gap between sections
+                    // Regular paragraph with inline formatting
+                    let p = escapeHtml(t)
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\*(.*?)\*/g, '<em>$1</em>');
+                    return `<p style="text-indent:2em; margin:${Math.round(6 * SCALE)}px 0; text-align:justify;">${p}</p>`;
+                })
+                .join('\n');
+            contentHtml += html;
+            contentHtml += `<div style="text-align:center; margin:${Math.round(30 * SCALE)}px 0; color:#ddd;">✦</div>`;
         });
-    });
 
-    doc.save(`${sanitizeFilename(title)}.pdf`);
+        if (contentHtml) {
+            const pagesAdded = await renderContentPages(contentHtml, ci, runningPage);
+            runningPage += pagesAdded;
+        }
+    }
+
+    // ─── 5. Back page ───
+    await renderPage(`
+        <div style="width:100%; height:100%; background:#fdfbf7; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:${pad}px; font-family:'Noto Serif TC','Songti SC',Georgia,serif;">
+            <p style="font-size:${Math.round(16 * SCALE)}px; font-style:italic; color:#666; line-height:2; max-width:80%;">
+                "${escapeHtml(project.settings.topic)}"
+            </p>
+            ${author ? `
+                <div style="width:60px; height:1px; background:#ccc; margin:${Math.round(24 * SCALE)}px 0;"></div>
+                <p style="font-size:${Math.round(14 * SCALE)}px; color:#999;">${escapeHtml(author)}</p>
+            ` : ''}
+        </div>
+    `);
+
+    // Cleanup
+    document.body.removeChild(container);
+    doc.save(`${filename}.pdf`);
 }
 
 // ─── Utility ───
