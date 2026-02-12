@@ -29,6 +29,12 @@ export async function POST(req: NextRequest) {
       Tone & Style: ${bookSettings.toneAndStyle}
       Target Audience: ${bookSettings.targetAudience}
       
+      IMPORTANT - CHARACTER NAMES:
+      If this is fiction/novel content, you MUST use exactly the character names specified in the section instructions above.
+      DO NOT substitute them with common/generic names like "小明", "小美", "John", "Alice", etc.
+      If no character names are specified, create unique and memorable names that fit the cultural setting and time period of the story.
+      Each character should have a distinctive name that readers won't confuse with characters from other stories.
+      
       Story/Content Context (Summary of what came before):
       ${previousContentSummary}
       

@@ -24,9 +24,21 @@ export async function POST(req: NextRequest) {
       Key Elements to Include: ${settings.mustInclude}
       Target Length Strategy: The user wants a very long book (100k+ words logic). 
       
+      CRITICAL - CHARACTER NAME DIVERSITY (for fiction/novel):
+      If this is a novel or fiction work, you MUST create completely unique and original character names.
+      Use a mix of creative naming conventions. DO NOT reuse generic names like "小明", "小美", "John", "Alice", "Sarah", "James", "Wang Wei", etc.
+      Draw inspiration from the book's specific cultural setting, time period, and themes to create distinctive names.
+      Each book should feel like its own unique world with its own cast.
+      Unique Seed for this book: ${Date.now()}-${Math.random().toString(36).slice(2)}
+      
       Break the book down into Chapters.
       CRITICAL: Break each Chapter down into detailed "Sections".
       Each Section represents a writing task of approximately 1000-2000 words.
+      
+      In each section's "description", provide detailed instructions for the writer AI including:
+      - Character names and their roles (use the unique names you created)
+      - Key plot points or content for this section
+      - Setting and atmosphere details
       
       Context from Research:
       ${researchContext.substring(0, 20000)}

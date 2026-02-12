@@ -11,6 +11,7 @@ export type BookType = 'novel' | 'non-fiction' | 'textbook' | 'biography' | 'ant
 
 export interface BookSettings {
   title: string;
+  authorName: string;
   topic: string;
   bookType: BookType;
   language: string;

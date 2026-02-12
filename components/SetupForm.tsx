@@ -13,6 +13,7 @@ const SetupForm: React.FC<SetupFormProps> = ({ onComplete }) => {
   const [isAutofilling, setIsAutofilling] = useState(false);
   const [formData, setFormData] = useState<BookSettings>({
     title: '',
+    authorName: '',
     topic: '',
     bookType: 'non-fiction',
     language: 'Traditional Chinese (繁體中文)',
@@ -132,16 +133,27 @@ const SetupForm: React.FC<SetupFormProps> = ({ onComplete }) => {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-stone-300">目標讀者</label>
+            <label className="text-sm font-medium text-stone-300">作者名稱</label>
             <input
-              required
-              name="targetAudience"
-              value={formData.targetAudience}
+              name="authorName"
+              value={formData.authorName}
               onChange={handleChange}
-              placeholder="例如：行業專家與學術研究人員"
+              placeholder="例如：張三 / John Doe（留空則不顯示）"
               className="w-full bg-stone-800 border border-stone-700 rounded-lg p-3 text-stone-200 focus:ring-2 focus:ring-amber-600 focus:outline-none placeholder-stone-600"
             />
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-stone-300">目標讀者</label>
+          <input
+            required
+            name="targetAudience"
+            value={formData.targetAudience}
+            onChange={handleChange}
+            placeholder="例如：行業專家與學術研究人員"
+            className="w-full bg-stone-800 border border-stone-700 rounded-lg p-3 text-stone-200 focus:ring-2 focus:ring-amber-600 focus:outline-none placeholder-stone-600"
+          />
         </div>
 
         <div className="space-y-2">

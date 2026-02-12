@@ -35,6 +35,7 @@ export function createProject(name?: string): SavedProject {
         project: {
             settings: {
                 title: '',
+                authorName: '',
                 topic: '',
                 bookType: 'non-fiction',
                 targetAudience: '',
