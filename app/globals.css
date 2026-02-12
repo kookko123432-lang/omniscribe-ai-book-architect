@@ -34,20 +34,12 @@
 /* ─── Print styles ─── */
 @media print {
 
-  /* Content pages: uniform 2cm margin on all sides.
-     This ensures EVERY page (including continuation pages)
-     has consistent top, bottom, left, right margins.
-     When using "Save as PDF" in Chrome, headers/footers
-     are hidden by default. */
+  /* ZERO margin = browser will NOT render headers/footers
+     (no date, title, URL, or page numbers).
+     Element-level padding handles all spacing instead. */
   @page {
-    margin: 2cm;
-    size: 152mm 229mm;
-  }
-
-  /* Full-bleed pages (cover, back cover): zero margin
-     so the cover image can fill the entire page. */
-  @page fullbleed {
     margin: 0;
+    size: 152mm 229mm;
   }
 
   /* Force backgrounds and colors to print */
@@ -91,45 +83,44 @@
     background: transparent !important;
   }
 
-  /* Book preview container: fill the page content area */
+  /* Book preview container: fill page, remove ALL visual decorations */
   #book-preview-container {
     width: auto !important;
     max-width: none !important;
+    min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+  }
+
+  /* Remove ALL borders, shadows, outlines from every element in the book */
+  #book-preview-container *,
+  #book-preview-container *::before,
+  #book-preview-container *::after {
+    box-shadow: none !important;
+    outline: none !important;
+    border-color: transparent !important;
+  }
+
+  /* Restore borders only where intentionally used (TOC dots, dividers) */
+  #book-preview-container .border-b,
+  #book-preview-container .border-dotted {
+    border-color: currentColor !important;
   }
 
   /* Page breaks */
   .page-break {
     page-break-before: always;
     break-before: page;
-    box-shadow: none !important;
   }
 
-  /* First element — no break before it */
+  /* First element — no break before it (prevents blank first page) */
   #book-preview-container> :first-child {
-    page-break-before: auto;
-    break-before: auto;
-  }
-
-  /* Full-bleed pages (cover, back cover) */
-  .print-fullbleed {
-    page: fullbleed;
-  }
-
-  /* Strip element padding for non-fullbleed pages.
-     @page margin: 2cm handles all spacing, so elements
-     don't need their own padding.
-     BUT fullbleed pages keep their padding since @page margin is 0. */
-  #book-preview-container>div:not(.print-fullbleed),
-  #book-preview-container>div>div {
-    padding: 0 !important;
-  }
-
-  /* Fullbleed pages keep their original padding */
-  .print-fullbleed {
-    padding: 10mm !important;
+    page-break-before: auto !important;
+    break-before: auto !important;
   }
 
   /* Typography */
