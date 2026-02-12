@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { BookProject, LayoutSettings } from '@/types';
 import { generateBookCover } from '@/lib/api';
-import { Printer, Download, Image as ImageIcon, Sparkles, Layout as LayoutIcon, Type, RefreshCw, Loader2 } from 'lucide-react';
+import { exportEPUB, exportPDF, exportDOCX, exportMarkdown, exportTXT } from '@/lib/exporters';
+import { Download, Image as ImageIcon, Sparkles, Layout as LayoutIcon, Type, Loader2, BookOpen, FileText, FileType, FileCode, File } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface BookDesignerProps {
@@ -14,6 +15,7 @@ interface BookDesignerProps {
 const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
   const [activeTab, setActiveTab] = useState<'cover' | 'layout' | 'preview'>('cover');
   const [isGeneratingCover, setIsGeneratingCover] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<string | null>(null);
   const [coverPrompt, setCoverPrompt] = useState(`A minimalistic and artistic book cover for a book titled "${project.settings.title}". The book is about ${project.settings.topic}. Style: ${project.settings.toneAndStyle}. No text.`);
 
   const handleGenerateCover = async () => {
@@ -67,10 +69,6 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   return (
     <div className="flex h-full flex-col md:flex-row relative">
       {/* Settings Panel (Hidden when printing) */}
@@ -98,7 +96,7 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
           </button>
         </div>
 
-        <div className="p-6 flex-1 space-y-8">
+        <div className="p-6 flex-1 space-y-8 overflow-y-auto">
           {activeTab === 'cover' && (
             <div className="space-y-6">
               <div>
@@ -186,17 +184,42 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
           )}
         </div>
 
-        <div className="p-6 border-t border-stone-800 bg-stone-900">
-          <button
-            onClick={handlePrint}
-            className="w-full bg-green-700 hover:bg-green-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors mb-2"
-          >
-            <Printer size={18} />
-            匯出 PDF / 列印
-          </button>
-          <p className="text-xs text-stone-500 text-center">
-            點擊後，請在列印視窗中選擇「另存為 PDF」。<br />請記得勾選「背景圖形」以保留背景色。
-          </p>
+        <div className="p-6 border-t border-stone-800 bg-stone-900 space-y-3">
+          <h3 className="text-sm font-medium text-stone-300 flex items-center gap-2">
+            <Download size={16} /> 匯出電子書
+          </h3>
+          <div className="grid grid-cols-1 gap-2">
+            {[
+              { key: 'epub', label: 'EPUB', desc: '電子書閱讀器', icon: BookOpen, fn: exportEPUB, color: 'from-emerald-600 to-emerald-700' },
+              { key: 'pdf', label: 'PDF', desc: '列印 / 共享', icon: FileText, fn: exportPDF, color: 'from-red-600 to-red-700' },
+              { key: 'docx', label: 'DOCX', desc: 'Word 文件', icon: FileType, fn: exportDOCX, color: 'from-blue-600 to-blue-700' },
+              { key: 'md', label: 'Markdown', desc: '純文字格式', icon: FileCode, fn: exportMarkdown, color: 'from-stone-600 to-stone-700' },
+              { key: 'txt', label: 'TXT', desc: '純文字', icon: File, fn: exportTXT, color: 'from-stone-600 to-stone-700' },
+            ].map(({ key, label, desc, icon: Icon, fn, color }) => (
+              <button
+                key={key}
+                disabled={!!exportingFormat}
+                onClick={async () => {
+                  setExportingFormat(key);
+                  try {
+                    await fn(project);
+                  } catch (e) {
+                    console.error(e);
+                    alert(`匯出 ${label} 時發生錯誤`);
+                  } finally {
+                    setExportingFormat(null);
+                  }
+                }}
+                className={`w-full bg-gradient-to-r ${color} hover:brightness-110 text-white py-2.5 px-4 rounded-lg flex items-center gap-3 transition-all disabled:opacity-50`}
+              >
+                {exportingFormat === key ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}
+                <div className="text-left">
+                  <span className="font-bold text-sm">{label}</span>
+                  <span className="text-xs opacity-70 ml-2">{desc}</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
