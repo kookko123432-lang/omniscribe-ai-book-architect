@@ -31,17 +31,14 @@
   background: #94a3b8;
 }
 
-/* Print styles — used by the PDF (Print) button */
+/* Print styles — output exactly what the preview shows */
 @media print {
   @page {
     margin: 0;
-    size: A4;
+    size: 210mm 297mm;
   }
 
-  /* ── Unlock the ENTIRE height/overflow constraint chain ── */
-  /* Without these, the PDF only shows one page */
-
-  /* Reset html and body */
+  /* ── Reset the page shell ── */
   html,
   body {
     height: auto !important;
@@ -49,36 +46,9 @@
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
-    color: black !important;
   }
 
-  /* Layout.tsx root: h-screen → auto */
-  body>div,
-  body>div>div,
-  [class*="h-screen"],
-  [class*="h-full"] {
-    height: auto !important;
-    min-height: 0 !important;
-    overflow: visible !important;
-  }
-
-  /* Layout.tsx main: flex-1 overflow-hidden → visible */
-  main,
-  [class*="overflow-hidden"],
-  [class*="overflow-y-auto"] {
-    overflow: visible !important;
-    height: auto !important;
-    flex: none !important;
-  }
-
-  /* Flex containers: allow natural flow */
-  [class*="flex-1"] {
-    flex: none !important;
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  /* ── Hide non-print elements ── */
+  /* ── Hide non-book elements ── */
   .no-print,
   aside,
   header,
@@ -89,37 +59,56 @@
     display: none !important;
   }
 
-  .print-only {
+  /* ── Unlock ONLY the Layout wrapper height chain ──
+     Layout.tsx root (h-screen), main (flex-1 overflow-hidden),
+     BookDesigner outer (h-full), preview scroll area (flex-1 overflow-y-auto).
+     These wrappers clip content; they must expand.
+     NOTE: This must NOT affect the page-level elements inside
+     #book-preview-container that use h-[297mm] / min-h-[297mm]. */
+  body>div:first-child,
+  /* Next.js root */
+  body>div:first-child>div,
+  /* Layout root (h-screen) */
+  main {
     display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    flex: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
   }
 
-  /* ── Book preview container ── */
+  /* ── The book preview container ──
+     Keep it at A4 width (210mm), centered, no shadow.
+     This preserves the exact same dimensions as the preview. */
   #book-preview-container {
-    max-width: none !important;
-    width: 100% !important;
-    margin: 0 !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
     padding: 0 !important;
     box-shadow: none !important;
   }
 
-  /* Preview wrapper — remove padding/bg */
-  #book-preview-container>* {
-    box-shadow: none !important;
-  }
-
-  /* ── Page breaks ── */
+  /* ── Page elements: preserve their preview sizes ──
+     Cover, TOC, chapter title pages, back cover all have
+     h-[297mm] or min-h-[297mm] set inline via Tailwind.
+     DO NOT override these — they define the page layout. */
   .page-break {
     page-break-before: always;
     break-before: page;
+    box-shadow: none !important;
   }
 
-  /* First page should not break before itself */
-  #book-preview-container>.page-break:first-child {
+  /* First page (cover) — don't add a blank page before it */
+  #book-preview-container>.page-break:first-child,
+  #book-preview-container> :first-child {
     page-break-before: auto;
     break-before: auto;
   }
 
-  /* ── Typography for print ── */
+  /* ── Typography ── */
   p {
     orphans: 3;
     widows: 3;
