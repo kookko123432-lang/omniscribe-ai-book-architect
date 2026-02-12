@@ -33,8 +33,10 @@
 
 /* Print styles — output exactly what the preview shows */
 @media print {
+
+  /* Every page gets consistent margins — including continuation pages */
   @page {
-    margin: 0;
+    margin: 1.5cm 2cm;
     size: 152mm 229mm;
   }
 
@@ -59,16 +61,9 @@
     display: none !important;
   }
 
-  /* ── Unlock ONLY the Layout wrapper height chain ──
-     Layout.tsx root (h-screen), main (flex-1 overflow-hidden),
-     BookDesigner outer (h-full), preview scroll area (flex-1 overflow-y-auto).
-     These wrappers clip content; they must expand.
-     NOTE: This must NOT affect the page-level elements inside
-     #book-preview-container that use h-[297mm] / min-h-[297mm]. */
+  /* ── Unlock Layout wrapper height chain ── */
   body>div:first-child,
-  /* Next.js root */
   body>div:first-child>div,
-  /* Layout root (h-screen) */
   main {
     display: block !important;
     height: auto !important;
@@ -80,29 +75,34 @@
     background: transparent !important;
   }
 
-  /* ── The book preview container ──
-     Keep it at A4 width (210mm), centered, no shadow.
-     This preserves the exact same dimensions as the preview. */
+  /* ── Book preview container ── */
   #book-preview-container {
-    width: 152mm !important;
-    max-width: 152mm !important;
-    margin: 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
   }
 
-  /* ── Page elements: preserve their preview sizes ──
-     Cover, TOC, chapter title pages, back cover all have
-     h-[297mm] or min-h-[297mm] set inline via Tailwind.
-     DO NOT override these — they define the page layout. */
-  .page-break {
-    page-break-before: always;
-    break-before: page;
+  /* ── Strip element-level padding in print ──
+     @page margins handle all spacing now,
+     so elements don't need their own padding */
+  #book-preview-container .page-break,
+  #book-preview-container>div>div {
+    padding: 0 !important;
     box-shadow: none !important;
   }
 
-  /* First page (cover) — don't add a blank page before it */
-  #book-preview-container>.page-break:first-child,
+  /* Fixed-height pages (cover, back cover, chapter title, TOC) —
+     let them fill the available page area instead of overflowing */
+  .page-break {
+    page-break-before: always;
+    break-before: page;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  /* First page (cover) — no blank page before it */
   #book-preview-container> :first-child {
     page-break-before: auto;
     break-before: auto;
