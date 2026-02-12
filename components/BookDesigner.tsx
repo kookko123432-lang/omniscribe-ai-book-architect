@@ -191,7 +191,14 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
           <div className="grid grid-cols-1 gap-2">
             {[
               { key: 'epub', label: 'EPUB', desc: '電子書閱讀器', icon: BookOpen, fn: exportEPUB, color: 'from-emerald-600 to-emerald-700' },
-              { key: 'pdf', label: 'PDF', desc: '列印 / 另存 PDF', icon: Printer, fn: async () => { window.print(); }, color: 'from-red-600 to-red-700' },
+              {
+                key: 'pdf', label: 'PDF', desc: '列印 / 另存 PDF', icon: Printer, fn: async () => {
+                  const originalTitle = document.title;
+                  document.title = project.settings.title;
+                  window.print();
+                  document.title = originalTitle;
+                }, color: 'from-red-600 to-red-700'
+              },
               { key: 'docx', label: 'DOCX', desc: 'Word 文件', icon: FileType, fn: exportDOCX, color: 'from-blue-600 to-blue-700' },
               { key: 'md', label: 'Markdown', desc: '純文字格式', icon: FileCode, fn: exportMarkdown, color: 'from-stone-600 to-stone-700' },
               { key: 'txt', label: 'TXT', desc: '純文字', icon: File, fn: exportTXT, color: 'from-stone-600 to-stone-700' },
@@ -234,7 +241,7 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
           `}>
 
           {/* Cover Page */}
-          <div className="relative w-full h-[229mm] p-10 flex flex-col items-center justify-between text-center page-break">
+          <div className="relative w-full h-[229mm] p-10 flex flex-col items-center justify-between text-center page-break print-fullbleed">
             {project.coverImage && (
               <div className="absolute inset-0 w-full h-full z-0">
                 <img src={project.coverImage} alt="Cover" className="w-full h-full object-cover opacity-30 blur-sm" />
@@ -306,7 +313,7 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
           ))}
 
           {/* Back Cover */}
-          <div className="w-full h-[229mm] p-10 flex flex-col items-center justify-center text-center page-break relative overflow-hidden">
+          <div className="w-full h-[229mm] p-10 flex flex-col items-center justify-center text-center page-break print-fullbleed relative overflow-hidden">
             <div className="z-10 max-w-lg">
               <p className="text-lg italic mb-8 opacity-80 leading-loose">"{project.settings.topic}"</p>
               {project.settings.authorName && (

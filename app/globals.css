@@ -31,16 +31,22 @@
   background: #94a3b8;
 }
 
-/* Print styles — output exactly what the preview shows */
+/* ─── Print styles ─── */
 @media print {
 
-  /* Every page gets consistent margins — including continuation pages */
+  /* Zero margin = browser will NOT show headers/footers
+     (date, title, URL, page numbers are hidden) */
   @page {
-    margin: 1.5cm 2cm;
+    margin: 0;
     size: 152mm 229mm;
   }
 
-  /* ── Reset the page shell ── */
+  /* Full-bleed pages (cover, back cover) use the full page */
+  @page fullbleed {
+    margin: 0;
+  }
+
+  /* Reset html & body */
   html,
   body {
     height: auto !important;
@@ -50,7 +56,7 @@
     background: white !important;
   }
 
-  /* ── Hide non-book elements ── */
+  /* Hide non-book elements */
   .no-print,
   aside,
   header,
@@ -61,7 +67,7 @@
     display: none !important;
   }
 
-  /* ── Unlock Layout wrapper height chain ── */
+  /* Unlock Layout wrapper height chain */
   body>div:first-child,
   body>div:first-child>div,
   main {
@@ -75,40 +81,34 @@
     background: transparent !important;
   }
 
-  /* ── Book preview container ── */
+  /* Book preview container */
   #book-preview-container {
-    width: auto !important;
-    max-width: none !important;
+    width: 152mm !important;
+    max-width: 152mm !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
   }
 
-  /* ── Strip element-level padding in print ──
-     @page margins handle all spacing now,
-     so elements don't need their own padding */
-  #book-preview-container .page-break,
-  #book-preview-container>div>div {
-    padding: 0 !important;
-    box-shadow: none !important;
-  }
-
-  /* Fixed-height pages (cover, back cover, chapter title, TOC) —
-     let them fill the available page area instead of overflowing */
+  /* Page breaks */
   .page-break {
     page-break-before: always;
     break-before: page;
-    min-height: 0 !important;
-    height: auto !important;
+    box-shadow: none !important;
   }
 
-  /* First page (cover) — no blank page before it */
+  /* First element — no break before it */
   #book-preview-container> :first-child {
     page-break-before: auto;
     break-before: auto;
   }
 
-  /* ── Typography ── */
+  /* Full-bleed pages (cover, back cover) */
+  .print-fullbleed {
+    page: fullbleed;
+  }
+
+  /* Typography */
   p {
     orphans: 3;
     widows: 3;
