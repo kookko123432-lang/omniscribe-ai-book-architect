@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { BookProject, Section } from '@/types';
 import { writeSectionContent, summarizeContext } from '@/lib/api';
-import { Play, Pause, Download, Clock, CheckCircle, AlertCircle, FileText, ArrowRight } from 'lucide-react';
+import { Play, Pause, Download, Clock, CheckCircle, AlertCircle, FileText, ArrowRight, Square } from 'lucide-react';
 
 interface WriterDashboardProps {
     project: BookProject;
@@ -12,11 +12,17 @@ interface WriterDashboardProps {
     onNext: () => void;
 }
 
+// Global abort controller — persists across mounts/unmounts
+// so old loops get killed when a new one starts
+let globalAbortController: AbortController | null = null;
+let globalGenerationId = 0;
+
 const WriterDashboard: React.FC<WriterDashboardProps> = ({ project, setProject, onNext }) => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [currentStatusMsg, setCurrentStatusMsg] = useState('準備開始');
     const [contextSummary, setContextSummary] = useState('');
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+    const generationIdRef = useRef(0);
 
     // Flatten sections for easier traversal
     const allSections = project.structure.chapters.flatMap(c =>
@@ -25,25 +31,67 @@ const WriterDashboard: React.FC<WriterDashboardProps> = ({ project, setProject, 
 
     const completedCount = allSections.filter(s => s.status === 'completed').length;
     const totalCount = allSections.length;
-    // Safety check for division by zero
     const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-    const stopSignal = useRef(false);
+    // On mount: check if any sections are stuck in 'generating' state (from a previous unmount)
+    // and reset them to 'pending'
+    useEffect(() => {
+        const hasStuckSections = allSections.some(s => s.status === 'generating');
+        if (hasStuckSections) {
+            setProject(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    structure: {
+                        chapters: prev.structure.chapters.map(c => ({
+                            ...c,
+                            sections: c.sections.map(s =>
+                                s.status === 'generating' ? { ...s, status: 'pending' as const } : s
+                            )
+                        }))
+                    }
+                };
+            });
+            setCurrentStatusMsg('上次生成被中斷，已重置為等待狀態。');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Only on mount
 
-    // Auto-select first pending or first completed
+    // On unmount: abort any running generation
+    useEffect(() => {
+        return () => {
+            if (globalAbortController) {
+                globalAbortController.abort();
+                globalAbortController = null;
+            }
+        };
+    }, []);
+
+    // Auto-select first pending or first section
     useEffect(() => {
         if (!selectedSectionId) {
-            const first = allSections[0]?.id;
-            if (first) setSelectedSectionId(first);
+            const first = allSections.find(s => s.status === 'pending') || allSections[0];
+            if (first) setSelectedSectionId(first.id);
         }
     }, [allSections, selectedSectionId]);
+
+    // Build context summary from existing completed sections
+    const buildContextFromCompleted = useCallback(() => {
+        const completedSections = allSections.filter(s => s.status === 'completed' && s.content);
+        if (completedSections.length === 0) return '';
+        // Take last 3 completed sections as context
+        const recent = completedSections.slice(-3);
+        return recent.map(s => `【${s.chapterTitle} - ${s.title}】: ${s.content?.slice(0, 500)}...`).join('\n');
+    }, [allSections]);
 
     const updateSection = (chapterId: string, sectionId: string, updates: Partial<Section>) => {
         setProject(prev => {
             if (!prev) return null;
             return {
                 ...prev,
-                totalWordCount: updates.wordCount ? prev.totalWordCount + updates.wordCount : prev.totalWordCount,
+                totalWordCount: updates.wordCount
+                    ? prev.totalWordCount + updates.wordCount
+                    : prev.totalWordCount,
                 structure: {
                     chapters: prev.structure.chapters.map(c =>
                         c.id === chapterId
@@ -60,67 +108,125 @@ const WriterDashboard: React.FC<WriterDashboardProps> = ({ project, setProject, 
 
     const startBatchGeneration = async () => {
         if (isGenerating) return;
-        setIsGenerating(true);
-        stopSignal.current = false;
 
-        // Find next pending section
-        let pendingSections = allSections.filter(s => s.status === 'pending');
+        // Kill any previous generation loop (from a previous mount)
+        if (globalAbortController) {
+            globalAbortController.abort();
+        }
+
+        // Create new abort controller and generation ID
+        const abortController = new AbortController();
+        globalAbortController = abortController;
+        globalGenerationId++;
+        const myGenerationId = globalGenerationId;
+        generationIdRef.current = myGenerationId;
+
+        setIsGenerating(true);
+
+        // Re-read pending sections fresh from project state
+        const pendingSections = allSections.filter(s => s.status === 'pending');
 
         if (pendingSections.length === 0) {
-            setCurrentStatusMsg("所有章節已完成！");
+            setCurrentStatusMsg("所有章節已完成！🎉");
             setIsGenerating(false);
             return;
         }
 
+        // Initialize context from completed sections
+        let runningContext = contextSummary || buildContextFromCompleted();
+
         try {
-            // Iterate sequentially
             for (const section of pendingSections) {
-                if (stopSignal.current) break;
+                // Check if aborted
+                if (abortController.signal.aborted) {
+                    setCurrentStatusMsg("已停止生成。");
+                    break;
+                }
+
+                // Check if this generation loop is still the active one
+                if (globalGenerationId !== myGenerationId) {
+                    break; // A newer generation loop has taken over
+                }
 
                 setSelectedSectionId(section.id);
                 setCurrentStatusMsg(`正在生成: ${section.title}...`);
                 updateSection(section.chapterId, section.id, { status: 'generating' });
 
-                // 1. Generate Content
-                const content = await writeSectionContent(
-                    section.title,
-                    section.description,
-                    project.settings,
-                    section.chapterTitle,
-                    contextSummary,
-                    project.research
-                );
+                try {
+                    // Generate content
+                    const content = await writeSectionContent(
+                        section.title,
+                        section.description,
+                        project.settings,
+                        section.chapterTitle,
+                        runningContext,
+                        project.research
+                    );
 
-                const wordCount = content.trim().split(/\s+/).length;
+                    // Check abort again after the API call
+                    if (abortController.signal.aborted || globalGenerationId !== myGenerationId) {
+                        // Still save the content we got — don't waste it!
+                        const wordCount = content.trim().split(/\\s+/).length;
+                        updateSection(section.chapterId, section.id, {
+                            status: 'completed',
+                            content,
+                            wordCount
+                        });
+                        break;
+                    }
 
-                // 2. Update State
-                updateSection(section.chapterId, section.id, {
-                    status: 'completed',
-                    content: content,
-                    wordCount: wordCount
-                });
+                    const wordCount = content.trim().split(/\\s+/).length;
 
-                // 3. Summarize for next context
-                setCurrentStatusMsg(`正在總結上下文...`);
-                const newSummary = await summarizeContext(content);
-                setContextSummary(prev => prev + "\n" + newSummary);
+                    updateSection(section.chapterId, section.id, {
+                        status: 'completed',
+                        content,
+                        wordCount
+                    });
 
-                await new Promise(r => setTimeout(r, 1000));
+                    // Summarize for next context
+                    setCurrentStatusMsg(`正在總結上下文...`);
+                    try {
+                        const newSummary = await summarizeContext(content);
+                        runningContext = runningContext + "\n" + newSummary;
+                        setContextSummary(runningContext);
+                    } catch {
+                        // If summarize fails, just use truncated content as context
+                        runningContext += "\n" + content.slice(0, 500);
+                    }
+
+                    // Small delay between sections
+                    await new Promise(r => setTimeout(r, 500));
+
+                } catch (sectionError) {
+                    if (abortController.signal.aborted) break;
+                    console.error(`Section "${section.title}" failed:`, sectionError);
+                    updateSection(section.chapterId, section.id, { status: 'error' });
+                    setCurrentStatusMsg(`「${section.title}」生成失敗，跳到下一節...`);
+                    await new Promise(r => setTimeout(r, 1000));
+                }
             }
         } catch (e) {
             console.error(e);
             setCurrentStatusMsg("生成錯誤: 可能達到 API 限制，請稍候再試。");
         } finally {
-            setIsGenerating(false);
-            if (!stopSignal.current) {
-                setCurrentStatusMsg("批次處理暫停或完成。");
+            // Only update state if this is still the active generation
+            if (globalGenerationId === myGenerationId) {
+                setIsGenerating(false);
+                if (!abortController.signal.aborted) {
+                    const remaining = allSections.filter(s => s.status === 'pending').length;
+                    setCurrentStatusMsg(remaining > 0 ? "已暫停。" : "所有章節已完成！🎉");
+                }
             }
         }
     };
 
     const stopGeneration = () => {
-        stopSignal.current = true;
-        setCurrentStatusMsg("正在當前章節完成後停止...");
+        if (globalAbortController) {
+            globalAbortController.abort();
+            globalAbortController = null;
+        }
+        setIsGenerating(false);
+        setCurrentStatusMsg("已停止。當前章節完成後會儲存。");
     };
 
     const downloadMarkdown = () => {
@@ -164,7 +270,7 @@ const WriterDashboard: React.FC<WriterDashboardProps> = ({ project, setProject, 
                             </button>
                         ) : (
                             <button onClick={stopGeneration} className="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 text-xs font-bold py-2 rounded flex items-center justify-center gap-2 border border-red-800">
-                                <Pause size={14} fill="currentColor" /> 停止
+                                <Square size={14} fill="currentColor" /> 立即停止
                             </button>
                         )}
                         <button onClick={downloadMarkdown} className="px-3 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded border border-stone-700" title="下載 Markdown">
@@ -187,8 +293,8 @@ const WriterDashboard: React.FC<WriterDashboardProps> = ({ project, setProject, 
                                     key={section.id}
                                     onClick={() => setSelectedSectionId(section.id)}
                                     className={`w-full text-left px-3 py-2 text-sm rounded flex items-center justify-between group transition-colors ${selectedSectionId === section.id
-                                            ? 'bg-amber-900/30 text-amber-100 border border-amber-800/50'
-                                            : 'text-stone-400 hover:bg-stone-900'
+                                        ? 'bg-amber-900/30 text-amber-100 border border-amber-800/50'
+                                        : 'text-stone-400 hover:bg-stone-900'
                                         }`}
                                 >
                                     <span className="truncate flex-1 pr-2">{section.title}</span>
@@ -231,8 +337,8 @@ const WriterDashboard: React.FC<WriterDashboardProps> = ({ project, setProject, 
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className={`text-xs px-2 py-1 rounded capitalize ${activeSectionData.status === 'completed' ? 'bg-green-900/30 text-green-400 border border-green-800' :
-                                        activeSectionData.status === 'generating' ? 'bg-amber-900/30 text-amber-400 border border-amber-800' :
-                                            'bg-stone-800 text-stone-500'
+                                    activeSectionData.status === 'generating' ? 'bg-amber-900/30 text-amber-400 border border-amber-800' :
+                                        'bg-stone-800 text-stone-500'
                                     }`}>
                                     {activeSectionData.status === 'pending' ? '等待中' :
                                         activeSectionData.status === 'generating' ? '生成中' :
