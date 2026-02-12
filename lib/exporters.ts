@@ -1,6 +1,7 @@
 /**
  * Multi-format book exporter
- * Supports: EPUB, PDF, DOCX, Markdown, TXT
+ * Supports: EPUB, DOCX, Markdown, TXT
+ * PDF uses native window.print() — see BookDesigner.tsx
  */
 
 import { BookProject } from '@/types';
@@ -309,137 +310,6 @@ export async function exportDOCX(project: BookProject) {
 
     const blob = await Packer.toBlob(doc);
     saveAs(blob, `${sanitizeFilename(title)}.docx`);
-}
-
-// ─── PDF Export (captures the actual rendered preview from BookDesigner) ───
-
-export async function exportPDF(project: BookProject) {
-    const { jsPDF } = await import('jspdf');
-    const html2canvas = (await import('html2canvas')).default;
-
-    const title = project.settings.title;
-    const filename = sanitizeFilename(title);
-
-    // Find the actual rendered preview container in the DOM
-    const container = document.getElementById('book-preview-container');
-    if (!container) {
-        alert('請先切換到「設計與出版」頁面再匯出 PDF');
-        return;
-    }
-
-    // A4 page dimensions
-    const PAGE_W_MM = 210;
-    const PAGE_H_MM = 297;
-
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-
-    // Collect all renderable page elements from the preview DOM
-    // Structure: cover (.page-break), TOC (.page-break),
-    // chapter wrappers containing title page (.page-break) + content div,
-    // back cover (.page-break)
-    const allElements: HTMLElement[] = [];
-
-    const children = Array.from(container.children) as HTMLElement[];
-    for (const child of children) {
-        if (child.classList.contains('page-break')) {
-            allElements.push(child);
-        } else {
-            // Chapter wrapper — contains title page + content div
-            const subChildren = Array.from(child.children) as HTMLElement[];
-            for (const sub of subChildren) {
-                allElements.push(sub);
-            }
-        }
-    }
-
-    if (allElements.length === 0) {
-        alert('沒有找到可匯出的頁面內容');
-        return;
-    }
-
-    // Save scroll state
-    const scrollParent = container.closest('.overflow-y-auto') as HTMLElement;
-    const savedScroll = scrollParent?.scrollTop || 0;
-
-    // Background color from the container's computed style
-    const containerStyle = window.getComputedStyle(container);
-    const bgColor = containerStyle.backgroundColor || '#fdfbf7';
-
-    let isFirstPage = true;
-
-    for (const el of allElements) {
-        if (el.offsetHeight < 10) continue;
-
-        try {
-            // Capture the element as-is from the rendered preview
-            const canvas = await html2canvas(el, {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                backgroundColor: bgColor,
-                width: el.offsetWidth,
-                height: el.offsetHeight,
-                scrollX: 0,
-                scrollY: 0,
-                windowWidth: el.offsetWidth,
-            });
-
-            const imgW = canvas.width;
-            const imgH = canvas.height;
-
-            // Scale to fit page width
-            const pdfW = PAGE_W_MM;
-            const scaleFactor = pdfW / imgW;
-            const pdfH = imgH * scaleFactor;
-
-            if (pdfH <= PAGE_H_MM) {
-                // Fits in one page
-                if (!isFirstPage) doc.addPage();
-                doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pdfW, pdfH);
-                isFirstPage = false;
-            } else {
-                // Content spans multiple pages — slice the canvas
-                const pagesNeeded = Math.ceil(pdfH / PAGE_H_MM);
-                const sliceHeightPx = Math.floor(imgH / pagesNeeded);
-
-                for (let p = 0; p < pagesNeeded; p++) {
-                    if (!isFirstPage) doc.addPage();
-
-                    const sliceCanvas = document.createElement('canvas');
-                    sliceCanvas.width = imgW;
-                    const thisSliceH = Math.min(sliceHeightPx, imgH - p * sliceHeightPx);
-                    sliceCanvas.height = thisSliceH;
-
-                    const ctx = sliceCanvas.getContext('2d');
-                    if (ctx) {
-                        ctx.fillStyle = bgColor;
-                        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-                        ctx.drawImage(
-                            canvas,
-                            0, p * sliceHeightPx,
-                            imgW, thisSliceH,
-                            0, 0,
-                            imgW, thisSliceH
-                        );
-                    }
-
-                    const slicePdfH = thisSliceH * scaleFactor;
-                    doc.addImage(
-                        sliceCanvas.toDataURL('image/jpeg', 0.92),
-                        'JPEG', 0, 0, pdfW, Math.min(slicePdfH, PAGE_H_MM)
-                    );
-                    isFirstPage = false;
-                }
-            }
-        } catch (e) {
-            console.error('Error rendering page element:', e);
-        }
-    }
-
-    // Restore scroll position
-    if (scrollParent) scrollParent.scrollTop = savedScroll;
-
-    doc.save(`${filename}.pdf`);
 }
 
 // ─── Utility ───

@@ -17,45 +17,124 @@
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* Print styles */
+/* Print styles — used by the PDF (Print) button */
 @media print {
   @page {
-    margin: 2cm;
+    margin: 0;
     size: A4;
   }
+
+  /* Hide everything except the book preview */
   body {
     background-color: white !important;
     color: black !important;
     overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  .no-print {
+
+  /* Hide sidebar, nav, and other non-print elements */
+  .no-print,
+  header,
+  nav,
+  footer,
+  button,
+  [role="dialog"] {
     display: none !important;
   }
+
   .print-only {
     display: block !important;
   }
+
+  /* The preview scroll container — remove scroll, show all */
+  .overflow-y-auto {
+    overflow: visible !important;
+    height: auto !important;
+    background: white !important;
+    padding: 0 !important;
+  }
+
+  /* The book container — fill width, no shadow */
+  #book-preview-container {
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Page breaks */
   .page-break {
     page-break-before: always;
+    break-before: page;
+  }
+
+  /* First page-break element should not break before */
+  #book-preview-container>.page-break:first-child {
+    page-break-before: auto;
+    break-before: auto;
+  }
+
+  /* Prevent orphans and widows for content */
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Full-bleed images */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* No breaks inside these blocks */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  /* Chapter content sections — let them flow naturally */
+  .prose {
+    max-width: none !important;
   }
 }
 
 /* Progress bar animation */
 @keyframes progress {
-  0% { width: 0; }
-  50% { width: 100%; }
-  100% { width: 0; }
+  0% {
+    width: 0;
+  }
+
+  50% {
+    width: 100%;
+  }
+
+  100% {
+    width: 0;
+  }
 }
+
 .animate-progress {
   animation: progress 2s ease-in-out infinite;
 }

@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { BookProject, LayoutSettings } from '@/types';
 import { generateBookCover } from '@/lib/api';
-import { exportEPUB, exportPDF, exportDOCX, exportMarkdown, exportTXT } from '@/lib/exporters';
-import { Download, Image as ImageIcon, Sparkles, Layout as LayoutIcon, Type, Loader2, BookOpen, FileText, FileType, FileCode, File } from 'lucide-react';
+import { exportEPUB, exportDOCX, exportMarkdown, exportTXT } from '@/lib/exporters';
+import { Download, Image as ImageIcon, Sparkles, Layout as LayoutIcon, Type, Loader2, BookOpen, FileText, FileType, FileCode, File, Printer } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface BookDesignerProps {
@@ -191,7 +191,7 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
           <div className="grid grid-cols-1 gap-2">
             {[
               { key: 'epub', label: 'EPUB', desc: '電子書閱讀器', icon: BookOpen, fn: exportEPUB, color: 'from-emerald-600 to-emerald-700' },
-              { key: 'pdf', label: 'PDF', desc: '列印 / 共享', icon: FileText, fn: exportPDF, color: 'from-red-600 to-red-700' },
+              { key: 'pdf', label: 'PDF', desc: '列印 / 另存 PDF', icon: Printer, fn: async () => { window.print(); }, color: 'from-red-600 to-red-700' },
               { key: 'docx', label: 'DOCX', desc: 'Word 文件', icon: FileType, fn: exportDOCX, color: 'from-blue-600 to-blue-700' },
               { key: 'md', label: 'Markdown', desc: '純文字格式', icon: FileCode, fn: exportMarkdown, color: 'from-stone-600 to-stone-700' },
               { key: 'txt', label: 'TXT', desc: '純文字', icon: File, fn: exportTXT, color: 'from-stone-600 to-stone-700' },
