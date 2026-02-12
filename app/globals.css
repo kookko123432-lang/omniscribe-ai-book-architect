@@ -1,0 +1,61 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Inter", "Noto Sans TC", sans-serif;
+  --font-serif: "Merriweather", "Noto Serif TC", serif;
+  --font-book-serif: "Cormorant Garamond", "Noto Serif TC", serif;
+  --font-book-sans: "Inter", "Noto Sans TC", sans-serif;
+  --font-book-round: "Zen Maru Gothic", sans-serif;
+  --color-paper: #fdfbf7;
+  --color-ink: #2d2a2e;
+  --color-accent: #d97706;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Print styles */
+@media print {
+  @page {
+    margin: 2cm;
+    size: A4;
+  }
+  body {
+    background-color: white !important;
+    color: black !important;
+    overflow: visible !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .page-break {
+    page-break-before: always;
+  }
+}
+
+/* Progress bar animation */
+@keyframes progress {
+  0% { width: 0; }
+  50% { width: 100%; }
+  100% { width: 0; }
+}
+.animate-progress {
+  animation: progress 2s ease-in-out infinite;
+}
