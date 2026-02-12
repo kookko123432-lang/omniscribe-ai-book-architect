@@ -228,13 +228,13 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
 
         {/* Print Container */}
         <div id="book-preview-container" className={`
-                max-w-[210mm] mx-auto min-h-[297mm] shadow-2xl print:shadow-none print:w-full print:max-w-none
+                max-w-[152mm] mx-auto min-h-[229mm] shadow-2xl print:shadow-none
                 ${getThemeClasses()} ${getFontFamily()}
                 transition-colors duration-300
           `}>
 
           {/* Cover Page */}
-          <div className="relative w-full h-[297mm] p-12 flex flex-col items-center justify-between text-center page-break print:h-screen">
+          <div className="relative w-full h-[229mm] p-10 flex flex-col items-center justify-between text-center page-break">
             {project.coverImage && (
               <div className="absolute inset-0 w-full h-full z-0">
                 <img src={project.coverImage} alt="Cover" className="w-full h-full object-cover opacity-30 blur-sm" />
@@ -261,7 +261,7 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
           </div>
 
           {/* Table of Contents */}
-          <div className="w-full min-h-[297mm] p-[2.5cm] page-break">
+          <div className="w-full min-h-[229mm] p-[2cm] page-break">
             <h2 className="text-3xl font-bold mb-12 border-b pb-4 border-current opacity-30">{getTocLabel()}</h2>
             <div className="space-y-4">
               {project.structure.chapters.map((chapter, index) => (
@@ -278,14 +278,14 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
           {project.structure.chapters.map((chapter, cIndex) => (
             <div key={chapter.id} className="w-full">
               {/* Chapter Title Page */}
-              <div className="w-full min-h-[297mm] p-[2.5cm] flex flex-col justify-center text-center page-break">
+              <div className="w-full min-h-[229mm] p-[2cm] flex flex-col justify-center text-center page-break">
                 <span className="text-sm uppercase tracking-[0.3em] opacity-50 mb-4">{getChapterLabel(cIndex)}</span>
                 <h2 className="text-4xl font-bold mb-8">{chapter.title}</h2>
                 <div className="w-12 h-1 bg-current mx-auto opacity-20"></div>
               </div>
 
               {/* Sections */}
-              <div className="w-full p-[2.5cm] pt-12">
+              <div className="w-full p-[2cm] pt-10">
                 {chapter.sections.map((section) => (
                   <div key={section.id} className="mb-12">
                     {section.content ? (
@@ -306,7 +306,7 @@ const BookDesigner: React.FC<BookDesignerProps> = ({ project, setProject }) => {
           ))}
 
           {/* Back Cover */}
-          <div className="w-full h-[297mm] p-12 flex flex-col items-center justify-center text-center page-break relative overflow-hidden">
+          <div className="w-full h-[229mm] p-10 flex flex-col items-center justify-center text-center page-break relative overflow-hidden">
             <div className="z-10 max-w-lg">
               <p className="text-lg italic mb-8 opacity-80 leading-loose">"{project.settings.topic}"</p>
               {project.settings.authorName && (

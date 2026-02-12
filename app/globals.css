@@ -35,7 +35,7 @@
 @media print {
   @page {
     margin: 0;
-    size: 210mm 297mm;
+    size: 152mm 229mm;
   }
 
   /* ── Reset the page shell ── */
@@ -84,8 +84,8 @@
      Keep it at A4 width (210mm), centered, no shadow.
      This preserves the exact same dimensions as the preview. */
   #book-preview-container {
-    width: 210mm !important;
-    max-width: 210mm !important;
+    width: 152mm !important;
+    max-width: 152mm !important;
     margin: 0 auto !important;
     padding: 0 !important;
     box-shadow: none !important;
